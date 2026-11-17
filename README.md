@@ -36,10 +36,19 @@ O terminal mostra o endereço, algo como `http://192.168.0.10:8080`. Abra esse e
 - Para mudar a porta ou a pasta: `PORT=3000 DATA_DIR=/caminho/das/fotos node server.js`.
 - Não há senha: qualquer pessoa na sua rede Wi-Fi pode ver e alterar as fotos. Use apenas na rede de casa e não exponha a porta na internet.
 
-### 2. Sem servidor — só um aparelho
+### 2. Sem servidor — sempre on-line pelo GitHub Pages
 
-Abra o `index.html` por qualquer hospedagem de arquivos estáticos (por exemplo o GitHub Pages deste repositório: *Settings → Pages → Deploy from a branch*).
-As fotos ficam guardadas **naquele aparelho**, dentro do navegador — nada é enviado para a internet.
+O app também funciona hospedado de graça no GitHub Pages, sem nenhum computador ligado:
+
+1. No GitHub, abra o repositório e vá em **Settings → Pages**.
+2. Em *Build and deployment*, escolha **Deploy from a branch**, selecione a branch do app e a pasta **/ (root)**, e clique em **Save**.
+3. Em um ou dois minutos o endereço aparece no topo da página (algo como `https://SEU-USUARIO.github.io/Porta-retrato/`).
+
+Nesse modo cada aparelho guarda as próprias fotos e ajustes. Para todos mostrarem as mesmas fotos, use uma **pasta do Google Drive** (veja abaixo): você coloca as fotos na pasta pelo celular e elas aparecem em todas as telas.
+
+Para configurar a TV ou o tablet sem digitar tudo de novo: em **Ajustes → Neste aparelho**, toque em **Copiar link de configuração** e abra esse link no outro aparelho. Ele leva os ajustes, a pasta do Drive e a chave. Trate o link como uma senha.
+
+As fotos enviadas pelo botão *Adicionar fotos* ficam guardadas **naquele aparelho**, dentro do navegador.
 
 Bom para um tablet que vira porta-retrato. Em Android/iPad dá para "Adicionar à tela inicial" e ele abre em tela cheia, funcionando até sem internet.
 Atenção: se você limpar os dados do navegador, as fotos guardadas ali são apagadas.

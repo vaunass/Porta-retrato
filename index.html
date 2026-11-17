@@ -280,6 +280,14 @@
         <div class="card">
           <h2>Neste aparelho</h2>
           <label class="switch"><input type="checkbox" id="autoStart"><span></span>Começar a apresentação ao abrir o app</label>
+          <div id="shareBox" hidden>
+            <h3>Configurar outro aparelho</h3>
+            <p class="muted small">Gera um link com estes ajustes (inclusive a pasta do Google Drive). Abra o link na TV ou no tablet e ele já fica pronto. As fotos enviadas pelo botão “Adicionar fotos” ficam só neste aparelho e não vão junto.</p>
+            <div class="toolbar">
+              <button id="shareBtn" class="btn">Copiar link de configuração</button>
+            </div>
+            <input id="shareUrl" type="text" readonly hidden aria-label="Link de configuração">
+          </div>
           <p class="muted small">Ideal para a TV ou o tablet que fica na estante. A música só começa depois de um toque na tela — é uma regra dos navegadores.</p>
           <h3>Durante a apresentação</h3>
           <ul class="keys muted small">

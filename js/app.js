@@ -181,6 +181,31 @@
       settingsChanged();
     });
 
+    $('shareBox').hidden = store.mode === 'server'; // no servidor os ajustes já são compartilhados
+    $('shareBtn').onclick = function () {
+      // Só o que mudou em relação ao padrão, para o link ficar curto.
+      var data = { autoStart: $('autoStart').checked };
+      Object.keys(DEFAULTS).forEach(function (k) {
+        if (settings[k] !== DEFAULTS[k]) data[k] = settings[k];
+      });
+      var json = JSON.stringify(data);
+      var code = btoa(unescape(encodeURIComponent(json)));
+      var link = location.origin + location.pathname + '#config=' + encodeURIComponent(code);
+      var box = $('shareUrl');
+      box.value = link;
+      box.hidden = false;
+      box.select();
+      var copy = navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(link) : Promise.reject();
+      copy.then(
+        function () {
+          toast('Link copiado. Envie para a TV ou o tablet e abra lá.');
+        },
+        function () {
+          toast('Copie o link que apareceu abaixo do botão.');
+        }
+      );
+    };
+
     var auto = $('autoStart');
     try {
       auto.checked = localStorage.getItem('pr.autoStart') === '1';
@@ -935,6 +960,30 @@
     });
   }
 
+  /* ---------- link de configuração (#config=…) ---------- */
+
+  function importConfigLink() {
+    var m = /[#&]config=([^&]+)/.exec(location.hash);
+    if (!m) return;
+    try {
+      history.replaceState(null, '', location.pathname + location.search); // tira a chave da barra de endereço
+    } catch (e) {}
+    var raw;
+    try {
+      raw = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+    } catch (e) {
+      toast('Este link de configuração está incompleto. Copie de novo.');
+      return;
+    }
+    if (!raw || typeof raw !== 'object') return;
+    settings = normalize(Object.assign({}, settings, raw));
+    try {
+      if (typeof raw.autoStart === 'boolean') localStorage.setItem('pr.autoStart', raw.autoStart ? '1' : '0');
+    } catch (e) {}
+    store.saveSettings(settings).catch(function () {});
+    toast('Ajustes aplicados neste aparelho.');
+  }
+
   /* ---------- partida ---------- */
 
   async function boot() {
@@ -953,6 +1002,7 @@
     Music.init();
     Player.init();
     settings = normalize(await store.getSettings().catch(function () { return {}; }));
+    importConfigLink();
     fillForm();
     applySettings();
 
