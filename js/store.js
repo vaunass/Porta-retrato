@@ -14,6 +14,11 @@
     return Date.now().toString(36) + (Math.random().toString(36) + '000000').slice(2, 8);
   }
 
+  // Endereço que não precisa ser liberado depois (arquivo do servidor ou da internet).
+  function fixed(url) {
+    return Promise.resolve({ url: url, release: function () {} });
+  }
+
   /* ---------------- modo local (IndexedDB) ---------------- */
 
   function createLocal() {
@@ -103,11 +108,12 @@
         });
       },
       thumbUrl: function (photo) {
+        if (photo.url) return photo.thumbUrl || photo.url;
         if (!thumbUrls[photo.id]) thumbUrls[photo.id] = URL.createObjectURL(photo.thumb);
         return thumbUrls[photo.id];
       },
       photoUrl: function (photo) {
-        return blobUrl('photoData', photo.id);
+        return photo.url ? fixed(photo.url) : blobUrl('photoData', photo.id);
       },
 
       listMusic: function () {
@@ -122,6 +128,12 @@
           tx.objectStore('music').put(rec);
         });
       },
+      addMusicLink: function (name, url) {
+        var rec = { id: newId(), name: name, type: 'stream', url: url };
+        return run(['music'], 'readwrite', function (tx) {
+          tx.objectStore('music').put(rec);
+        });
+      },
       deleteMusic: function (id) {
         return run(['music', 'musicData'], 'readwrite', function (tx) {
           tx.objectStore('music').delete(id);
@@ -129,7 +141,7 @@
         });
       },
       musicUrl: function (track) {
-        return blobUrl('musicData', track.id);
+        return track.url ? fixed(track.url) : blobUrl('musicData', track.id);
       },
 
       getSettings: function () {
@@ -168,10 +180,6 @@
       });
     }
 
-    function fixed(url) {
-      return Promise.resolve({ url: url, release: function () {} });
-    }
-
     function qs(params) {
       return Object.keys(params)
         .map(function (k) {
@@ -201,10 +209,11 @@
         return api('DELETE', 'api/photos/' + id);
       },
       thumbUrl: function (photo) {
+        if (photo.url) return photo.thumbUrl || photo.url;
         return 'media/thumbs/' + photo.id + '.jpg';
       },
       photoUrl: function (photo) {
-        return fixed('media/photos/' + photo.id + '.jpg');
+        return fixed(photo.url || 'media/photos/' + photo.id + '.jpg');
       },
 
       listMusic: function () {
@@ -214,11 +223,14 @@
         var type = file.type || 'audio/mpeg';
         return api('PUT', 'api/music/' + newId() + '?' + qs({ name: name, type: type }), file, type);
       },
+      addMusicLink: function (name, url) {
+        return api('PUT', 'api/links/' + newId(), JSON.stringify({ name: name, url: url }), 'application/json');
+      },
       deleteMusic: function (id) {
         return api('DELETE', 'api/music/' + id);
       },
       musicUrl: function (track) {
-        return fixed('media/music/' + track.id);
+        return fixed(track.url || 'media/music/' + track.id);
       },
 
       getSettings: function () {

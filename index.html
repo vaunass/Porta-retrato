@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#14110f">
+  <meta name="referrer" content="no-referrer">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,6 +27,7 @@
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
 </svg>
 
@@ -59,11 +61,42 @@
           <svg><use href="#i-plus"/></svg> Adicionar fotos
           <input id="photoInput" type="file" accept="image/*" multiple hidden>
         </label>
+        <label class="btn" id="folderBtn" hidden>
+          Adicionar uma pasta
+          <input id="folderInput" type="file" webkitdirectory multiple hidden>
+        </label>
+        <button id="driveBtn" class="btn"><svg><use href="#i-cloud"/></svg> <span>Google Drive</span></button>
         <button id="selectAllBtn" class="btn" hidden>Selecionar todas</button>
         <button id="clearSelBtn" class="btn" hidden>Limpar seleção</button>
         <button id="deleteSelBtn" class="btn danger" hidden>
           <svg><use href="#i-trash"/></svg> <span>Excluir</span>
         </button>
+      </div>
+      <div id="drivePanel" class="card inset" hidden>
+        <h2>Fotos de uma pasta do Google Drive</h2>
+        <p class="muted small">As fotos da pasta aparecem aqui sozinhas: é só colocar ou tirar fotos no Drive. A pasta precisa estar compartilhada como <b>“Qualquer pessoa com o link”</b>.</p>
+        <div class="field">
+          <label for="driveFolder">Link da pasta</label>
+          <input id="driveFolder" type="url" placeholder="https://drive.google.com/drive/folders/…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="driveKey">Chave de API do Google</label>
+          <input id="driveKey" type="text" placeholder="AIza…" autocomplete="off" spellcheck="false">
+        </div>
+        <details class="muted small howto">
+          <summary>Como conseguir a chave (gratuita, uns 5 minutos)</summary>
+          <ol>
+            <li>Entre em <b>console.cloud.google.com</b> com sua conta Google e crie um projeto.</li>
+            <li>Em <b>APIs e serviços → Biblioteca</b>, procure <b>Google Drive API</b> e clique em <b>Ativar</b>.</li>
+            <li>Em <b>APIs e serviços → Credenciais</b>, clique em <b>Criar credenciais → Chave de API</b>.</li>
+            <li>Copie a chave e cole acima. Se quiser, restrinja a chave à Google Drive API.</li>
+          </ol>
+        </details>
+        <div class="toolbar">
+          <button id="driveConnect" class="btn primary">Conectar</button>
+          <button id="driveDisconnect" class="btn" hidden>Desconectar</button>
+        </div>
+        <p id="driveStatus" class="small" role="status"></p>
       </div>
       <div id="photoProgress" class="progress" hidden><div class="bar"></div><span></span></div>
       <div id="photoEmpty" class="empty" hidden>
@@ -82,10 +115,37 @@
           <input id="musicInput" type="file" accept="audio/*" multiple hidden>
         </label>
       </div>
+      <div class="card inset">
+        <h2>Música on-line</h2>
+        <p class="muted small">Procure rádios da internet por nome ou estilo e adicione à sua lista. São gratuitas e tocam direto aqui, sem conta.</p>
+        <form id="radioForm" class="row search">
+          <input id="radioQuery" type="search" placeholder="Ex.: MPB, jazz, Antena 1…" aria-label="Buscar rádios" autocomplete="off">
+          <button class="btn primary" type="submit">Buscar</button>
+        </form>
+        <div class="chips" id="radioChips">
+          <button data-q="mpb">MPB</button>
+          <button data-q="sertanejo">Sertanejo</button>
+          <button data-q="samba">Samba</button>
+          <button data-q="bossa nova">Bossa nova</button>
+          <button data-q="jazz">Jazz</button>
+          <button data-q="classical">Clássica</button>
+          <button data-q="lofi">Lo-fi</button>
+          <button data-q="rock">Rock</button>
+          <button data-q="gospel">Gospel</button>
+        </div>
+        <p id="radioStatus" class="muted small" role="status"></p>
+        <ul id="radioResults" class="tracks"></ul>
+        <h3>Ou cole o link de um áudio ou de uma rádio</h3>
+        <form id="linkForm" class="row search">
+          <input id="linkUrl" type="url" placeholder="https://…/musica.mp3" aria-label="Link do áudio" autocomplete="off">
+          <button class="btn" type="submit">Adicionar</button>
+        </form>
+      </div>
+      <h3 id="musicListTitle" class="list-title" hidden>Sua lista</h3>
       <div id="musicProgress" class="progress" hidden><div class="bar"></div><span></span></div>
       <div id="musicEmpty" class="empty" hidden>
         <p class="empty-title">Nenhuma música ainda</p>
-        <p>Adicione arquivos de áudio (MP3, M4A, OGG…) para tocar durante a apresentação.</p>
+        <p>Adicione arquivos de áudio (MP3, M4A, OGG…) ou uma rádio on-line para tocar durante a apresentação.</p>
       </div>
       <ul id="musicList" class="tracks"></ul>
     </section>

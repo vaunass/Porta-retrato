@@ -159,7 +159,9 @@
       },
       play: function () {
         if (!order.length) return;
-        if (current && audio.getAttribute('src')) {
+        if (current && current.url) {
+          playAt(pos); // rádio ao vivo: reconecta em vez de tocar o que ficou parado
+        } else if (current && audio.getAttribute('src')) {
           wanted = true;
           startAudio();
           emit();
@@ -170,6 +172,11 @@
       pause: function () {
         wanted = false;
         audio.pause();
+        if (current && current.url) {
+          // Rádio: solta a conexão para não ficar baixando em silêncio.
+          audio.removeAttribute('src');
+          audio.load();
+        }
         emit();
       },
       toggle: function () {
@@ -251,6 +258,7 @@
 
     function go(target, dir) {
       clearTimeout(slideTimer);
+      slideTimer = null;
       if (!order.length) {
         shown = null;
         clearLayers();
@@ -274,6 +282,7 @@
       function failed() {
         if (mine !== token) return;
         failures++;
+        if (api.onLoadError) api.onLoadError(photo);
         if (failures >= order.length) {
           // Nada carregou (sem rede?). Tenta de novo daqui a pouco.
           failures = 0;
@@ -394,6 +403,7 @@
 
     function schedule() {
       clearTimeout(slideTimer);
+      slideTimer = null;
       if (!active || !playing || order.length < 2) return;
       slideTimer = setTimeout(function () {
         go(pos + 1, 1);
@@ -711,7 +721,7 @@
         buildOrder();
         if (!order.length) go(0, 1);
         else if (!had || pos < 0) go(Math.max(0, Math.min(pos, order.length - 1)), 1);
-        else schedule();
+        else if (!slideTimer) schedule(); // não reinicia a contagem da foto atual
       },
 
       setSettings: function (next) {

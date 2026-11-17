@@ -28,14 +28,30 @@
     musicOn: true,
     musicShuffle: false,
     volume: 60,
+    driveFolder: '',
+    driveKey: '',
   };
+
+  var DRIVE_RESYNC_MS = 20 * 60 * 1000; // os links das fotos do Drive valem poucas horas
+  var RADIO_FALLBACK = [
+    'https://de1.api.radio-browser.info',
+    'https://de2.api.radio-browser.info',
+    'https://fi1.api.radio-browser.info',
+  ];
 
   var MAX_SIDE = 2560; // lado maior da foto guardada
   var THUMB_SIDE = 360;
 
   var store = null;
   var settings = {};
-  var photos = [];
+  var photos = []; // enviadas + pasta do Drive
+  var uploaded = [];
+  var drivePhotos = [];
+  var driveSig = null;
+  var driveSync = Promise.resolve();
+  var driveTimer = null;
+  var lastDriveSync = 0;
+  var radioServers = null;
   var tracks = [];
   var selected = {};
   var busy = false;
@@ -90,6 +106,8 @@
       if (el.type === 'checkbox') el.checked = !!val;
       else el.value = val;
     });
+    $('driveFolder').value = settings.driveFolder;
+    $('driveKey').value = settings.driveKey;
     var sec = settings.interval;
     var unit = sec % 3600 === 0 ? 3600 : sec % 60 === 0 ? 60 : 1;
     $('intervalUnit').value = unit;
@@ -112,6 +130,11 @@
     Player.setSettings(settings);
     Music.setVolume(settings.volume);
     Music.setTracks(tracks, settings.musicShuffle);
+    var sig = driveFolderId(settings.driveFolder) + '|' + settings.driveKey.trim();
+    if (sig !== driveSig) {
+      driveSig = sig;
+      syncDrive();
+    }
   }
 
   var saveTimer = null;
@@ -177,18 +200,20 @@
     var ids = {};
     photos.forEach(function (photo) {
       ids[photo.id] = true;
-      var btn = document.createElement('button');
-      btn.className = 'thumb' + (selected[photo.id] ? ' selected' : '');
-      btn.setAttribute('data-id', photo.id);
-      btn.setAttribute('aria-pressed', selected[photo.id] ? 'true' : 'false');
-      btn.title = photo.name;
+      var btn = document.createElement(photo.cloud ? 'div' : 'button');
+      btn.className = 'thumb' + (photo.cloud ? ' cloud' : selected[photo.id] ? ' selected' : '');
+      if (!photo.cloud) {
+        btn.setAttribute('data-id', photo.id);
+        btn.setAttribute('aria-pressed', selected[photo.id] ? 'true' : 'false');
+      }
+      btn.title = photo.cloud ? photo.name + ' (Google Drive)' : photo.name;
       var img = document.createElement('img');
       img.loading = 'lazy';
       img.alt = photo.name;
       img.src = store.thumbUrl(photo);
       var mark = document.createElement('span');
       mark.className = 'mark';
-      mark.appendChild(icon('check'));
+      mark.appendChild(icon(photo.cloud ? 'cloud' : 'check'));
       btn.appendChild(img);
       btn.appendChild(mark);
       grid.appendChild(btn);
@@ -203,19 +228,160 @@
 
   function refreshSelection() {
     var n = Object.keys(selected).length;
-    $('selectAllBtn').hidden = !photos.length || n === photos.length;
+    $('selectAllBtn').hidden = !uploaded.length || n === uploaded.length;
     $('clearSelBtn').hidden = n === 0;
     $('deleteSelBtn').hidden = n === 0;
     $('deleteSelBtn').querySelector('span').textContent = 'Excluir ' + plural(n, 'foto', 'fotos');
-    $('photoHint').hidden = !photos.length || n > 0;
+    $('photoHint').hidden = !uploaded.length || n > 0;
   }
 
   function loadPhotos() {
     return store.listPhotos().then(function (list) {
-      photos = list;
-      renderPhotos();
-      Player.setPhotos(photos);
+      uploaded = list;
+      mergePhotos();
     });
+  }
+
+  function mergePhotos() {
+    photos = uploaded.concat(drivePhotos);
+    renderPhotos();
+    Player.setPhotos(photos);
+  }
+
+  /* ---------- pasta do Google Drive ---------- */
+
+  function driveFolderId(text) {
+    text = (text || '').trim();
+    var m = /\/folders\/([\w-]{10,})/.exec(text) || /[?&]id=([\w-]{10,})/.exec(text) || /^([\w-]{10,})$/.exec(text);
+    return m ? m[1] : '';
+  }
+
+  function driveDate(file) {
+    var taken = file.imageMediaMetadata && file.imageMediaMetadata.time; // "2024:05:01 10:20:30"
+    var m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(taken || '');
+    var t = m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : Date.parse(file.createdTime || '');
+    return t > 0 ? t : Date.now();
+  }
+
+  async function fetchDrive(folderId, key) {
+    var out = [];
+    var pageToken = '';
+    var k = encodeURIComponent(key);
+    for (var page = 0; page < 10; page++) {
+      var url =
+        'https://www.googleapis.com/drive/v3/files' +
+        '?q=' + encodeURIComponent("'" + folderId + "' in parents and mimeType contains 'image/' and trashed = false") +
+        '&fields=' + encodeURIComponent('nextPageToken,files(id,name,createdTime,thumbnailLink,imageMediaMetadata(time,width,height))') +
+        '&orderBy=name&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true' +
+        '&key=' + k +
+        (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+      var res = await fetch(url);
+      var data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok) {
+        var err = new Error((data.error && data.error.message) || 'Erro ' + res.status);
+        err.status = res.status;
+        throw err;
+      }
+      (data.files || []).forEach(function (f) {
+        var original = 'https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media&key=' + k;
+        var sizable = /=s\d+$/.test(f.thumbnailLink || '');
+        var meta = f.imageMediaMetadata || {};
+        out.push({
+          id: 'drive-' + f.id,
+          name: f.name || 'Foto',
+          date: driveDate(f),
+          w: meta.width || 0,
+          h: meta.height || 0,
+          cloud: true,
+          // O Drive entrega a foto já reduzida no tamanho pedido.
+          url: sizable ? f.thumbnailLink.replace(/=s\d+$/, '=s' + MAX_SIDE) : original,
+          thumbUrl: sizable ? f.thumbnailLink.replace(/=s\d+$/, '=s' + THUMB_SIDE) : f.thumbnailLink || original,
+        });
+      });
+      pageToken = data.nextPageToken;
+      if (!pageToken) break;
+    }
+    return out;
+  }
+
+  function driveStatus(text, isError) {
+    var el = $('driveStatus');
+    el.textContent = text;
+    el.className = 'small' + (isError ? ' error' : ' muted');
+  }
+
+  function refreshDriveUi() {
+    var connected = !!(driveFolderId(settings.driveFolder) && settings.driveKey.trim());
+    $('driveConnect').textContent = connected ? 'Atualizar agora' : 'Conectar';
+    $('driveDisconnect').hidden = !connected;
+    $('driveBtn').querySelector('span').textContent = connected ? 'Google Drive (' + drivePhotos.length + ')' : 'Google Drive';
+  }
+
+  function syncDrive() {
+    var id = driveFolderId(settings.driveFolder);
+    var key = settings.driveKey.trim();
+    var sig = driveSig;
+    clearTimeout(driveTimer);
+    if (!id || !key) {
+      drivePhotos = [];
+      mergePhotos();
+      driveStatus('');
+      refreshDriveUi();
+      return (driveSync = Promise.resolve());
+    }
+    driveStatus('Buscando as fotos da pasta…');
+    lastDriveSync = Date.now();
+    driveSync = fetchDrive(id, key)
+      .then(
+        function (list) {
+          if (sig !== driveSig) return;
+          drivePhotos = list;
+          mergePhotos();
+          if (list.length) driveStatus('Conectado: ' + plural(list.length, 'foto', 'fotos') + ' na pasta.');
+          else driveStatus('Nenhuma foto encontrada. Confira se a pasta tem fotos e está compartilhada como “Qualquer pessoa com o link”.', true);
+        },
+        function (err) {
+          if (sig !== driveSig) return;
+          var msg = 'Não foi possível falar com o Google Drive. Confira a internet.';
+          if (err.status === 400) msg = 'A chave de API não é válida. Copie de novo, sem espaços.';
+          else if (err.status === 403) msg = 'O Google recusou a chave. Confira se a Google Drive API está ativada no projeto da chave.';
+          else if (err.status === 404) msg = 'Pasta não encontrada. Confira o link e se ela está compartilhada como “Qualquer pessoa com o link”.';
+          driveStatus(msg, true);
+        }
+      )
+      .then(function () {
+        if (sig !== driveSig) return;
+        refreshDriveUi();
+        driveTimer = setTimeout(syncDrive, DRIVE_RESYNC_MS);
+      });
+    return driveSync;
+  }
+
+  function bindDrive() {
+    $('driveBtn').onclick = function () {
+      $('drivePanel').hidden = !$('drivePanel').hidden;
+    };
+    $('driveConnect').onclick = function () {
+      var folder = $('driveFolder').value.trim();
+      var key = $('driveKey').value.trim();
+      if (!driveFolderId(folder)) return driveStatus('Cole o link da pasta do Google Drive.', true);
+      if (!key) return driveStatus('Cole a chave de API do Google.', true);
+      var same = folder === settings.driveFolder && key === settings.driveKey;
+      settings = Object.assign({}, settings, { driveFolder: folder, driveKey: key });
+      if (same) syncDrive();
+      else settingsChanged();
+    };
+    $('driveDisconnect').onclick = function () {
+      settings = Object.assign({}, settings, { driveFolder: '', driveKey: '' });
+      fillForm();
+      settingsChanged();
+    };
+    // Um link vencido do Drive falhou ao abrir: busca a lista de novo.
+    Player.onLoadError = function (photo) {
+      if (photo.cloud && Date.now() - lastDriveSync > 60000) syncDrive();
+    };
   }
 
   function setProgress(id, done, total, label) {
@@ -345,8 +511,16 @@
       this.value = '';
       addPhotos(files);
     });
+    var folderInput = $('folderInput');
+    $('folderBtn').hidden = !('webkitdirectory' in folderInput);
+    folderInput.addEventListener('change', function () {
+      var files = [].slice.call(this.files);
+      this.value = '';
+      if (files.some(isImage)) addPhotos(files);
+      else toast('Não há fotos nessa pasta.');
+    });
     $('photoGrid').addEventListener('click', function (e) {
-      var btn = e.target.closest('.thumb');
+      var btn = e.target.closest('.thumb[data-id]');
       if (!btn) return;
       var id = btn.getAttribute('data-id');
       if (selected[id]) delete selected[id];
@@ -356,7 +530,7 @@
       refreshSelection();
     });
     $('selectAllBtn').onclick = function () {
-      photos.forEach(function (p) {
+      uploaded.forEach(function (p) {
         selected[p.id] = true;
       });
       renderPhotos();
@@ -412,8 +586,17 @@
       play.setAttribute('aria-label', 'Tocar ' + track.name);
       play.appendChild(icon(isCur && Music.isPlaying() ? 'pause' : 'play'));
       var name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = track.name;
+      name.className = 'info';
+      var title = document.createElement('span');
+      title.className = 'name';
+      title.textContent = track.name;
+      name.appendChild(title);
+      if (track.url) {
+        var meta = document.createElement('span');
+        meta.className = 'meta';
+        meta.textContent = 'On-line';
+        name.appendChild(meta);
+      }
       var del = document.createElement('button');
       del.className = 'icon-btn ghost';
       del.setAttribute('data-del', track.id);
@@ -426,6 +609,198 @@
     });
     $('musicCount').textContent = tracks.length || '';
     $('musicEmpty').hidden = tracks.length > 0;
+    $('musicListTitle').hidden = !tracks.length;
+  }
+
+  /* ---------- música on-line (rádios do diretório aberto Radio Browser) ---------- */
+
+  function fetchJson(url) {
+    var opts = {};
+    var timer = null;
+    if (window.AbortController) {
+      var ctl = new AbortController();
+      opts.signal = ctl.signal;
+      timer = setTimeout(function () {
+        ctl.abort();
+      }, 8000);
+    }
+    return fetch(url, opts).then(
+      function (res) {
+        clearTimeout(timer);
+        if (!res.ok) throw new Error('Erro ' + res.status);
+        return res.json();
+      },
+      function (err) {
+        clearTimeout(timer);
+        throw err;
+      }
+    );
+  }
+
+  async function radioApi(path) {
+    if (!radioServers) {
+      try {
+        var list = await fetchJson('https://all.api.radio-browser.info/json/servers');
+        radioServers = [];
+        list.forEach(function (s) {
+          var base = 'https://' + s.name;
+          if (s.name && radioServers.indexOf(base) < 0) radioServers.push(base);
+        });
+        if (!radioServers.length) throw new Error('lista vazia');
+      } catch (e) {
+        radioServers = RADIO_FALLBACK.slice();
+      }
+    }
+    var lastErr = new Error('sem servidor');
+    for (var i = 0; i < radioServers.length; i++) {
+      try {
+        return await fetchJson(radioServers[i] + path);
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr;
+  }
+
+  async function searchRadios(query) {
+    var base =
+      '/json/stations/search?limit=30&hidebroken=true&order=clickcount&reverse=true' +
+      (location.protocol === 'https:' ? '&is_https=true' : '');
+    var q = encodeURIComponent(query);
+    var failed = 0;
+    function quiet(p) {
+      return p.catch(function () {
+        failed++;
+        return [];
+      });
+    }
+    // Procura tanto no nome da rádio quanto no estilo musical.
+    var found = await Promise.all([quiet(radioApi(base + '&name=' + q)), quiet(radioApi(base + '&tag=' + q))]);
+    if (failed === 2) throw new Error('sem conexão');
+    var seen = {};
+    return found[0]
+      .concat(found[1])
+      .filter(function (s) {
+        var url = s.url_resolved || s.url || '';
+        if (!/^https?:\/\//i.test(url) || s.hls || seen[s.stationuuid]) return false;
+        seen[s.stationuuid] = true;
+        return true;
+      })
+      .sort(function (a, b) {
+        return (b.clickcount || 0) - (a.clickcount || 0);
+      })
+      .slice(0, 40);
+  }
+
+  function renderRadios(stations) {
+    var list = $('radioResults');
+    list.textContent = '';
+    stations.forEach(function (s) {
+      var url = s.url_resolved || s.url;
+      var name = (s.name || 'Rádio').trim();
+      var li = document.createElement('li');
+      var add = document.createElement('button');
+      add.className = 'icon-btn';
+      add.setAttribute('aria-label', 'Adicionar ' + name);
+      add.appendChild(icon('plus'));
+      add.onclick = function () {
+        add.disabled = true;
+        addLink(name, url).then(function (ok) {
+          if (ok) add.replaceChild(icon('check'), add.firstChild);
+          else add.disabled = false;
+        });
+      };
+      var info = document.createElement('span');
+      info.className = 'info';
+      var title = document.createElement('span');
+      title.className = 'name';
+      title.textContent = name;
+      var meta = document.createElement('span');
+      meta.className = 'meta';
+      var bits = [];
+      if (s.country) bits.push(s.country);
+      if (s.tags) bits.push(s.tags.split(',').slice(0, 3).join(', '));
+      if (s.bitrate) bits.push(s.bitrate + ' kbps');
+      meta.textContent = bits.join(' · ');
+      info.appendChild(title);
+      info.appendChild(meta);
+      li.appendChild(add);
+      li.appendChild(info);
+      list.appendChild(li);
+    });
+  }
+
+  function runRadioSearch(query) {
+    query = query.trim();
+    if (!query) return;
+    $('radioStatus').textContent = 'Procurando…';
+    $('radioResults').textContent = '';
+    searchRadios(query).then(
+      function (stations) {
+        $('radioStatus').textContent = stations.length
+          ? 'Toque em + para adicionar à sua lista e ouvir.'
+          : 'Nenhuma rádio encontrada para “' + query + '”.';
+        renderRadios(stations);
+      },
+      function () {
+        $('radioStatus').textContent = 'Não foi possível buscar agora. Confira a internet e tente de novo.';
+      }
+    );
+  }
+
+  // Adiciona um endereço à lista e já começa a tocar. Resolve com true se deu certo.
+  function addLink(name, url) {
+    if (tracks.some(function (t) { return t.url === url; })) {
+      toast('Essa já está na sua lista.');
+      return Promise.resolve(true);
+    }
+    return store
+      .addMusicLink(name, url)
+      .then(loadMusic)
+      .then(
+        function () {
+          var added = tracks.filter(function (t) { return t.url === url; })[0];
+          if (added) Music.playTrack(added.id);
+          toast('“' + name + '” adicionada à sua lista.');
+          return true;
+        },
+        function () {
+          toast('Não foi possível adicionar.');
+          return false;
+        }
+      );
+  }
+
+  function bindOnlineMusic() {
+    $('radioForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      runRadioSearch($('radioQuery').value);
+    });
+    $('radioChips').addEventListener('click', function (e) {
+      var q = e.target.getAttribute('data-q');
+      if (!q) return;
+      $('radioQuery').value = e.target.textContent;
+      runRadioSearch(q);
+    });
+    $('linkForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var url = $('linkUrl').value.trim();
+      var parsed = null;
+      try {
+        parsed = new URL(url);
+      } catch (err) {}
+      if (!parsed || !/^https?:$/.test(parsed.protocol)) return toast('Cole um link completo, começando com https://');
+      if (/(^|\.)(youtube\.com|youtu\.be|spotify\.com|deezer\.com)$/i.test(parsed.hostname)) {
+        return toast('Links do YouTube, Spotify e Deezer não tocam aqui. Use o link direto de um áudio ou de uma rádio.');
+      }
+      if (location.protocol === 'https:' && parsed.protocol === 'http:') {
+        return toast('Este link começa com http:// e o navegador o bloqueia. Procure a versão https://.');
+      }
+      var file = decodeURIComponent(parsed.pathname.split('/').pop() || '').replace(/\.[a-z0-9]{2,5}$/i, '');
+      addLink(file || parsed.hostname, url).then(function (ok) {
+        if (ok) $('linkUrl').value = '';
+      });
+    });
   }
 
   function loadMusic() {
@@ -584,9 +959,11 @@
     bindSettings();
     bindPhotos();
     bindMusic();
+    bindOnlineMusic();
+    bindDrive();
     setupRemote();
 
-    await Promise.all([loadPhotos(), loadMusic()]).catch(function () {
+    await Promise.all([loadPhotos(), loadMusic(), driveSync]).catch(function () {
       toast('Não foi possível carregar a biblioteca.');
     });
 

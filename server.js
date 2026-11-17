@@ -296,6 +296,18 @@ async function handleApi(req, res, url) {
     }
   }
 
+  // Música on-line: guarda só o endereço (rádio ou arquivo de áudio na internet).
+  if (resource === 'links' && method === 'PUT' && id) {
+    const body = await readJson(req);
+    const link = String((body && body.url) || '').trim();
+    if (!/^https?:\/\/[^\s]+$/i.test(link) || link.length > 2000) throw httpError(400, 'endereço inválido');
+    const item = { id, name: cleanText(body.name, 'Rádio'), type: 'stream', url: link };
+    db.music = db.music.filter((t) => t.id !== id).concat(item);
+    saveDb();
+    broadcast({ type: 'music' });
+    return sendJson(res, 200, item);
+  }
+
   if (resource === 'settings' && !id) {
     if (method === 'GET') return sendJson(res, 200, db.settings || {});
     if (method === 'PUT') {
@@ -352,7 +364,7 @@ function handle(req, res) {
     const immutable = 'public, max-age=31536000, immutable';
     if (kind === 'music') {
       const track = db.music.find((t) => t.id === id);
-      if (!track || media[3]) return sendJson(res, 404, { error: 'não encontrado' });
+      if (!track || track.url || media[3]) return sendJson(res, 404, { error: 'não encontrado' });
       return sendFile(req, res, path.join(DIRS.music, id), track.type, immutable);
     }
     if (!media[3]) return sendJson(res, 404, { error: 'não encontrado' });
