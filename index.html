@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14110f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Porta-Retrato</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+</svg>
+
+<!-- ======================= Tela inicial ======================= -->
+<div id="home">
+  <header class="top">
+    <div class="brand">
+      <img src="icons/icon.svg" alt="" width="44" height="44">
+      <div>
+        <h1>Porta-Retrato</h1>
+        <p id="modeLabel" class="muted">Carregando…</p>
+      </div>
+    </div>
+    <button id="startBtn" class="btn primary big" disabled>
+      <svg><use href="#i-play"/></svg> Iniciar
+    </button>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="photos">Fotos <span id="photoCount" class="count"></span></button>
+    <button class="tab" data-tab="music">Músicas <span id="musicCount" class="count"></span></button>
+    <button class="tab" data-tab="settings">Ajustes</button>
+    <button class="tab" data-tab="remote" id="remoteTab" hidden>Controle</button>
+  </nav>
+
+  <main>
+    <!-- Fotos -->
+    <section id="tab-photos" class="panel">
+      <div class="toolbar">
+        <label class="btn primary">
+          <svg><use href="#i-plus"/></svg> Adicionar fotos
+          <input id="photoInput" type="file" accept="image/*" multiple hidden>
+        </label>
+        <button id="selectAllBtn" class="btn" hidden>Selecionar todas</button>
+        <button id="clearSelBtn" class="btn" hidden>Limpar seleção</button>
+        <button id="deleteSelBtn" class="btn danger" hidden>
+          <svg><use href="#i-trash"/></svg> <span>Excluir</span>
+        </button>
+      </div>
+      <div id="photoProgress" class="progress" hidden><div class="bar"></div><span></span></div>
+      <div id="photoEmpty" class="empty" hidden>
+        <p class="empty-title">Nenhuma foto ainda</p>
+        <p>Toque em <b>Adicionar fotos</b> ou arraste as imagens para cá.</p>
+      </div>
+      <div id="photoGrid" class="grid"></div>
+      <p id="photoHint" class="muted hint" hidden>Toque em uma foto para selecioná-la.</p>
+    </section>
+
+    <!-- Músicas -->
+    <section id="tab-music" class="panel" hidden>
+      <div class="toolbar">
+        <label class="btn primary">
+          <svg><use href="#i-plus"/></svg> Adicionar músicas
+          <input id="musicInput" type="file" accept="audio/*" multiple hidden>
+        </label>
+      </div>
+      <div id="musicProgress" class="progress" hidden><div class="bar"></div><span></span></div>
+      <div id="musicEmpty" class="empty" hidden>
+        <p class="empty-title">Nenhuma música ainda</p>
+        <p>Adicione arquivos de áudio (MP3, M4A, OGG…) para tocar durante a apresentação.</p>
+      </div>
+      <ul id="musicList" class="tracks"></ul>
+    </section>
+
+    <!-- Ajustes -->
+    <section id="tab-settings" class="panel" hidden>
+      <div class="cards">
+        <div class="card">
+          <h2>Apresentação</h2>
+          <div class="field">
+            <label for="intervalValue">Tempo de cada foto</label>
+            <div class="row">
+              <input id="intervalValue" type="number" min="1" max="999" step="1" inputmode="numeric">
+              <select id="intervalUnit" aria-label="Unidade">
+                <option value="1">segundos</option>
+                <option value="60">minutos</option>
+                <option value="3600">horas</option>
+              </select>
+            </div>
+            <div class="chips" id="intervalChips">
+              <button data-sec="5">5 s</button>
+              <button data-sec="10">10 s</button>
+              <button data-sec="30">30 s</button>
+              <button data-sec="60">1 min</button>
+              <button data-sec="300">5 min</button>
+              <button data-sec="3600">1 h</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="s-order">Ordem das fotos</label>
+            <select id="s-order" data-key="order">
+              <option value="shuffle">Aleatória</option>
+              <option value="date">Mais antigas primeiro</option>
+              <option value="date-desc">Mais recentes primeiro</option>
+              <option value="name">Por nome</option>
+              <option value="added">Ordem de envio</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-transition">Transição</label>
+            <select id="s-transition" data-key="transition">
+              <option value="fade">Suave (esmaecer)</option>
+              <option value="slide">Deslizar</option>
+              <option value="zoom">Zoom</option>
+              <option value="random">Sortear a cada foto</option>
+              <option value="none">Nenhuma</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-transitionMs">Duração da transição <output data-for="transitionMs"></output></label>
+            <input id="s-transitionMs" type="range" min="300" max="4000" step="100" data-key="transitionMs">
+          </div>
+          <div class="field">
+            <label for="s-fit">Enquadramento</label>
+            <select id="s-fit" data-key="fit">
+              <option value="contain">Mostrar a foto inteira</option>
+              <option value="cover">Preencher a tela (corta as bordas)</option>
+            </select>
+          </div>
+          <label class="switch"><input type="checkbox" data-key="blurBg"><span></span>Fundo desfocado atrás da foto</label>
+          <label class="switch"><input type="checkbox" data-key="motion"><span></span>Movimento suave nas fotos</label>
+          <label class="switch"><input type="checkbox" data-key="tapNav"><span></span>Tocar nas laterais troca de foto</label>
+        </div>
+
+        <div class="card">
+          <h2>Tela</h2>
+          <div class="field">
+            <label for="s-clock">Relógio</label>
+            <select id="s-clock" data-key="clock">
+              <option value="off">Desligado</option>
+              <option value="time">Só a hora</option>
+              <option value="time-date">Hora e data</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-clockPos">Posição do relógio</label>
+            <select id="s-clockPos" data-key="clockPos">
+              <option value="br">Embaixo, à direita</option>
+              <option value="bl">Embaixo, à esquerda</option>
+              <option value="tr">Em cima, à direita</option>
+              <option value="tl">Em cima, à esquerda</option>
+            </select>
+          </div>
+          <label class="switch"><input type="checkbox" data-key="clock24"><span></span>Relógio de 24 horas</label>
+          <div class="field">
+            <label for="s-caption">Legenda da foto</label>
+            <select id="s-caption" data-key="caption">
+              <option value="off">Nenhuma</option>
+              <option value="name">Nome do arquivo</option>
+              <option value="date">Data</option>
+              <option value="both">Nome e data</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-brightness">Brilho <output data-for="brightness"></output></label>
+            <input id="s-brightness" type="range" min="20" max="100" step="5" data-key="brightness">
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Modo noturno</h2>
+          <div class="field">
+            <label for="s-night">Durante a noite</label>
+            <select id="s-night" data-key="night">
+              <option value="off">Não fazer nada</option>
+              <option value="dim">Escurecer a tela</option>
+              <option value="black">Apagar a tela e pausar a música</option>
+            </select>
+          </div>
+          <div class="row two">
+            <div class="field">
+              <label for="s-nightStart">Das</label>
+              <input id="s-nightStart" type="time" data-key="nightStart">
+            </div>
+            <div class="field">
+              <label for="s-nightEnd">Até</label>
+              <input id="s-nightEnd" type="time" data-key="nightEnd">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Música</h2>
+          <label class="switch"><input type="checkbox" data-key="musicOn"><span></span>Tocar música ao iniciar</label>
+          <label class="switch"><input type="checkbox" data-key="musicShuffle"><span></span>Ordem aleatória</label>
+          <div class="field">
+            <label for="s-volume">Volume <output data-for="volume"></output></label>
+            <input id="s-volume" type="range" min="0" max="100" step="5" data-key="volume">
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Neste aparelho</h2>
+          <label class="switch"><input type="checkbox" id="autoStart"><span></span>Começar a apresentação ao abrir o app</label>
+          <p class="muted small">Ideal para a TV ou o tablet que fica na estante. A música só começa depois de um toque na tela — é uma regra dos navegadores.</p>
+          <h3>Durante a apresentação</h3>
+          <ul class="keys muted small">
+            <li><b>Toque nas laterais</b> ou <kbd>←</kbd> <kbd>→</kbd> — foto anterior / próxima</li>
+            <li><b>Toque no centro</b> ou <kbd>OK</kbd> — mostra os controles</li>
+            <li><kbd>Espaço</kbd> — pausa · <kbd>M</kbd> — música · <kbd>F</kbd> — tela cheia</li>
+            <li><kbd>Esc</kbd> ou <kbd>Voltar</kbd> — sai</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controle remoto (só com o servidor) -->
+    <section id="tab-remote" class="panel" hidden>
+      <div class="cards">
+        <div class="card">
+          <h2>Controle remoto</h2>
+          <p class="muted small">Comanda as outras telas que estão com este app aberto (a TV, o tablet…).</p>
+          <div class="remote">
+            <button class="btn round" data-cmd="prev" aria-label="Foto anterior"><svg><use href="#i-prev"/></svg></button>
+            <button class="btn round primary" data-cmd="toggle" aria-label="Pausar ou continuar"><svg><use href="#i-pause"/></svg></button>
+            <button class="btn round" data-cmd="next" aria-label="Próxima foto"><svg><use href="#i-next"/></svg></button>
+          </div>
+          <div class="toolbar center">
+            <button class="btn" data-cmd="start"><svg><use href="#i-play"/></svg> Iniciar nas telas</button>
+            <button class="btn" data-cmd="stop"><svg><use href="#i-stop"/></svg> Parar</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Abrir em outro aparelho</h2>
+          <p class="muted small">Na mesma rede Wi-Fi, digite este endereço no navegador da TV, do tablet ou do celular:</p>
+          <div id="addresses" class="addresses"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ======================= Apresentação ======================= -->
+<div id="player" hidden>
+  <div id="stage">
+    <div class="slide"><div class="slide-bg"></div><img class="slide-img" alt=""></div>
+    <div class="slide"><div class="slide-bg"></div><img class="slide-img" alt=""></div>
+  </div>
+  <div id="playerMsg" hidden></div>
+  <div id="clock" hidden><div class="clock-time"></div><div class="clock-date"></div></div>
+  <div id="caption" hidden></div>
+  <div id="dimmer"></div>
+  <div id="pauseBadge" hidden><svg><use href="#i-pause"/></svg></div>
+  <div id="controls" class="off">
+    <button id="c-prev" aria-label="Foto anterior"><svg><use href="#i-prev"/></svg></button>
+    <button id="c-play" aria-label="Pausar ou continuar"><svg><use href="#i-pause"/></svg></button>
+    <button id="c-next" aria-label="Próxima foto"><svg><use href="#i-next"/></svg></button>
+    <span class="sep"></span>
+    <button id="c-music" aria-label="Ligar ou desligar a música"><svg><use href="#i-music"/></svg></button>
+    <button id="c-track" aria-label="Próxima música" class="small"><svg><use href="#i-next"/></svg></button>
+    <span id="c-trackName"></span>
+    <span class="sep"></span>
+    <button id="c-full" aria-label="Tela cheia"><svg><use href="#i-full"/></svg></button>
+    <button id="c-exit" aria-label="Sair"><svg><use href="#i-close"/></svg></button>
+  </div>
+</div>
+
+<audio id="audio" preload="auto"></audio>
+<div id="toast" hidden></div>
+
+<script src="js/store.js"></script>
+<script src="js/player.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
