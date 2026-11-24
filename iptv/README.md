@@ -20,6 +20,20 @@ O terminal mostra o endereço, algo como `http://192.168.0.10:8787`.
 
 Na primeira vez as listas grandes (algumas passam de 30 MB) levam um ou dois minutos para baixar. Depois ficam em cache em `iptv/data/` e atualizam sozinhas a cada 12 h.
 
+## App instalável na TV LG (webOS)
+
+O pacote pronto está em `webos-dist/com.portaiptv.app_1.0.0_all.ipk`. Ele é só um atalho: na primeira vez pede o endereço do servidor (ex.: `192.168.0.10:8787`), guarda e abre o Porta IPTV em Modo TV nas próximas vezes.
+
+1. Na TV, instale o app **Developer Mode** (LG Content Store), crie/entre numa conta de desenvolvedor LG e ligue o *Dev Mode Status* e o *Key Server*. A TV mostra o IP e a senha.
+2. No computador: `npm i -g @webos-tools/cli`
+3. `ares-setup-device --add tv --info "{'host':'IP_DA_TV','port':'9922','username':'prisoner'}"` (a TV pede a chave: `ares-novacom --device tv --getkey`, senha do Key Server).
+4. `ares-install --device tv webos-dist/com.portaiptv.app_1.0.0_all.ipk`
+5. Abra **Porta IPTV** na lista de apps. O Dev Mode precisa ser renovado a cada ~50 horas de uso (limite da LG para apps fora da loja).
+
+Para refazer o pacote: `ares-package webos -o webos-dist`.
+
+Sem instalar nada, o navegador da TV com o mesmo endereço funciona igual.
+
 ## O que tem
 
 - **Ao vivo, Filmes e Séries** em abas, com categorias, busca e favoritos (os favoritos valem para todos os aparelhos).
@@ -34,8 +48,8 @@ Na primeira vez as listas grandes (algumas passam de 30 MB) levam um ou dois min
 
 | Fonte | Como é lida |
 |---|---|
-| Free-TV/IPTV | listas Brasil e Portugal |
-| iptv-org/iptv | `streams/br.m3u` e `streams/pt.m3u` (para outros países, adicione `streams/XX.m3u` em *Fontes*) |
+| Free-TV/IPTV | listas Brasil, Portugal e a lista mundial |
+| iptv-org/iptv | Brasil, Portugal, Angola, Moçambique, Cabo Verde, EUA e Espanha; com acesso à API do GitHub, descobre também todos os outros países (até 300 arquivos) |
 | iptv-com/iptv | `lists/brazil.m3u` + descoberta |
 | xKzin/IPTV-Brazuka | Canais TV e Filmes e Séries |
 | stream-net-lab/canais-m3u | `canais.m3u` e `filmes.m3u` |

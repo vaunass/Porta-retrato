@@ -1,0 +1,14 @@
+{
+  "id": "com.portaiptv.app",
+  "version": "1.0.0",
+  "vendor": "Porta IPTV",
+  "type": "web",
+  "main": "index.html",
+  "title": "Porta IPTV",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#0a0e1a",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": false,
+  "requiredACG": []
+}

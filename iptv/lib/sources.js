@@ -167,8 +167,10 @@ class Sources {
     return JSON.parse(await fetchText(url, { headers: headers, timeout: 20000, max: 30 * 1024 * 1024 }));
   }
 
-  async _discoverRepo(repo, branch) {
-    const hit = this.discovery[repo];
+  async _discoverRepo(repo, branch, cap) {
+    cap = cap || 25;
+    const dkey = repo + '#' + cap;
+    const hit = this.discovery[dkey];
     if (hit && Date.now() - hit.t < DISCOVERY_TTL) return hit.urls;
     let urls = [];
     try {
@@ -177,7 +179,7 @@ class Sources {
       const files = (tree.tree || []).filter(function (n) {
         return n.type === 'blob' && /\.m3u8?$/i.test(n.path) && (n.size || 0) < 100 * 1024 * 1024 &&
           !/(^|\/)(node_modules|\.github|epg)\//i.test(n.path);
-      }).sort(function (a, b) { return (pref.test(b.path) ? 1 : 0) - (pref.test(a.path) ? 1 : 0); }).slice(0, 25);
+      }).sort(function (a, b) { return (pref.test(b.path) ? 1 : 0) - (pref.test(a.path) ? 1 : 0); }).slice(0, cap);
       urls = files.map(function (n) { return rawUrl(repo, branch, n.path); });
     } catch (e) {
       // API indisponível (limite/ rede): tenta o README e nomes comuns
@@ -192,7 +194,7 @@ class Sources {
       probes.forEach(function (u) { if (u && urls.indexOf(u) < 0) urls.push(u); });
     }
     if (urls.length) {
-      this.discovery[repo] = { t: Date.now(), urls: urls };
+      this.discovery[dkey] = { t: Date.now(), urls: urls };
       try { fs.writeFileSync(path.join(this.dir, 'discovery.json'), JSON.stringify(this.discovery)); } catch (e) { /* ok */ }
     }
     return urls;
@@ -203,7 +205,7 @@ class Sources {
     if (def.type === 'repo') {
       const urls = (def.files || []).map(function (f) { return rawUrl(def.repo, def.branch, f); });
       if (def.discover || !urls.length) {
-        (await this._discoverRepo(def.repo, def.branch)).forEach(function (u) { if (urls.indexOf(u) < 0) urls.push(u); });
+        (await this._discoverRepo(def.repo, def.branch, def.maxFiles)).forEach(function (u) { if (urls.indexOf(u) < 0) urls.push(u); });
       }
       return urls;
     }
