@@ -1,0 +1,50 @@
+[
+  {
+    "id": "free-tv", "name": "Free-TV", "type": "repo", "repo": "Free-TV/IPTV",
+    "files": ["playlists/playlist_brazil.m3u8", "playlists/playlist_portugal.m3u8"],
+    "home": "https://github.com/Free-TV/IPTV"
+  },
+  {
+    "id": "iptv-org", "name": "iptv-org", "type": "repo", "repo": "iptv-org/iptv",
+    "files": ["streams/br.m3u", "streams/pt.m3u"],
+    "home": "https://github.com/iptv-org/iptv"
+  },
+  {
+    "id": "iptv-com", "name": "iptv-com", "type": "repo", "repo": "iptv-com/iptv",
+    "files": ["lists/brazil.m3u"], "discover": true,
+    "home": "https://github.com/iptv-com/iptv"
+  },
+  {
+    "id": "brazuka", "name": "IPTV-Brazuka", "type": "repo", "repo": "xKzin/IPTV-Brazuka",
+    "files": ["IPTV-Brazuka.m3u", "Filmes e Séries.m3u"], "branch": "main",
+    "home": "https://github.com/xKzin/IPTV-Brazuka"
+  },
+  {
+    "id": "stream-net-lab", "name": "canais-m3u", "type": "repo", "repo": "stream-net-lab/canais-m3u",
+    "files": ["canais.m3u", "filmes.m3u"], "discover": true,
+    "home": "https://github.com/stream-net-lab/canais-m3u"
+  },
+  {
+    "id": "notfakelucas", "name": "Iptv-Brasil-2026 (notfakelucas)", "type": "repo",
+    "repo": "notfakelucas/Iptv-Brasil-2026", "files": [], "discover": true,
+    "home": "https://github.com/notfakelucas/Iptv-Brasil-2026"
+  },
+  {
+    "id": "ramys", "name": "Iptv-Brasil-2026 (Ramys)", "type": "repo",
+    "repo": "Ramys/Iptv-Brasil-2026", "files": [], "discover": true,
+    "home": "https://github.com/Ramys/Iptv-Brasil-2026"
+  },
+  {
+    "id": "llorchico", "name": "Llorchico (todos os repositórios)", "type": "user", "user": "Llorchico",
+    "home": "https://github.com/Llorchico"
+  },
+  {
+    "id": "saimo-gh", "name": "Saimo (GitHub)", "type": "repo", "repo": "SaimoTV/saimo-downloads",
+    "files": [], "discover": true,
+    "home": "https://github.com/SaimoTV/saimo-downloads"
+  },
+  { "id": "saimo-canais", "name": "Saimo · Canais", "type": "web", "url": "https://canais-saimo.pages.dev/", "home": "https://canais-saimo.pages.dev/" },
+  { "id": "saimo-filmes", "name": "Saimo · Filmes", "type": "web", "url": "https://filmes-saimo.pages.dev/", "home": "https://filmes-saimo.pages.dev/" },
+  { "id": "autom3u", "name": "autom3u.com", "type": "web", "url": "https://autom3u.com/", "home": "https://autom3u.com/" },
+  { "id": "doubo", "name": "doubo.tv", "type": "web", "url": "https://doubo.tv/en/", "home": "https://doubo.tv/en/" }
+]

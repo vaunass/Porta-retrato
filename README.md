@@ -1,6 +1,8 @@
 # Porta-Retrato
 
 Porta-retrato digital que roda no navegador do tablet, da TV, do celular ou do computador.
+
+> Procurando TV ao vivo, filmes e séries (IPTV) para o celular e a TV LG? Veja a pasta [`iptv/`](iptv/README.md).
 Você envia suas fotos, escolhe o tempo de cada uma, coloca música e deixa passando.
 
 ## O que ele faz

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Porta IPTV</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <nav id="nav" aria-label="Seções">
+    <div class="brand"><span class="logo"></span><b>Porta<span>IPTV</span></b></div>
+    <button data-view="l" class="on"><i data-ic="tv"></i><span>Ao vivo</span></button>
+    <button data-view="m"><i data-ic="film"></i><span>Filmes</span></button>
+    <button data-view="s"><i data-ic="layers"></i><span>Séries</span></button>
+    <button data-view="fav"><i data-ic="star"></i><span>Favoritos</span></button>
+    <button data-view="tvs"><i data-ic="cast"></i><span>TVs</span></button>
+    <button data-view="src"><i data-ic="list"></i><span>Fontes</span></button>
+  </nav>
+
+  <main id="main">
+    <header id="top">
+      <h1 id="title">Ao vivo</h1>
+      <label class="search"><i data-ic="search"></i><input id="q" type="search" placeholder="Buscar…" autocomplete="off" enterkeyhint="search"></label>
+      <button id="castPill" class="pill" title="Reproduzir em"><i data-ic="cast"></i><span id="castName">Este aparelho</span></button>
+    </header>
+
+    <section id="browse">
+      <div id="filters">
+        <div id="chips" class="chips"></div>
+        <select id="srcSel" aria-label="Fonte"></select>
+      </div>
+      <div id="grid" class="grid"></div>
+      <div id="empty" class="empty" hidden></div>
+      <div id="more" class="more">Carregando…</div>
+    </section>
+
+    <section id="tvs" class="page" hidden></section>
+    <section id="src" class="page" hidden></section>
+  </main>
+</div>
+
+<!-- Detalhe de série / adicionar fonte -->
+<div id="modal" class="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <button id="modalX" class="x" aria-label="Fechar"><i data-ic="x"></i></button>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<!-- Player -->
+<div id="player" hidden>
+  <video id="vid" playsinline webkit-playsinline autoplay></video>
+  <div id="pTop" class="pshow">
+    <button id="pBack" class="ib" aria-label="Voltar"><i data-ic="back"></i></button>
+    <div class="pt"><b id="pTitle"></b><small id="pSub"></small></div>
+  </div>
+  <div id="pSpin" class="spin" hidden></div>
+  <div id="pErr" class="perr" hidden>
+    <p id="pErrMsg"></p>
+    <div class="row">
+      <button id="pRetry" class="btn">Tentar de novo</button>
+      <button id="pDirect" class="btn ghost">Link direto</button>
+      <button id="pClose" class="btn ghost">Fechar</button>
+    </div>
+  </div>
+  <div id="pToast" class="ptoast" hidden></div>
+  <div id="pBar" class="pshow">
+    <div id="seekRow" class="seek" hidden>
+      <span id="tCur">0:00</span>
+      <input id="seek" type="range" min="0" max="1000" value="0">
+      <span id="tDur">0:00</span>
+    </div>
+    <div class="ctl">
+      <button id="bPrev" class="ib" aria-label="Anterior"><i data-ic="prev"></i></button>
+      <button id="bPlay" class="ib big" aria-label="Pausar"><i data-ic="pause"></i></button>
+      <button id="bNext" class="ib" aria-label="Próximo"><i data-ic="next"></i></button>
+      <span class="sp"></span>
+      <button id="bAlt" class="ib txt" aria-label="Trocar versão"><i data-ic="layers"></i><em id="altTxt">1/1</em></button>
+      <button id="bFav" class="ib" aria-label="Favoritar"><i data-ic="star"></i></button>
+      <button id="bMute" class="ib" aria-label="Som"><i data-ic="vol"></i></button>
+      <button id="bCast" class="ib" aria-label="Enviar para a TV"><i data-ic="cast"></i></button>
+      <button id="bFull" class="ib" aria-label="Tela cheia"><i data-ic="full"></i></button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="vendor/hls.min.js"></script>
+<script src="vendor/mpegts.js"></script>
+<script src="js/util.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/player.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "porta-retrato-iptv",
+  "version": "1.0.0",
+  "description": "IPTV para celular e TV LG: servidor local sem dependências + app web",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/core.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
