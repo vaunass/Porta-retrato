@@ -30,11 +30,17 @@
 
   function keepInView(el) {
     var r = el.getBoundingClientRect();
-    var top = 90, bottom = window.innerHeight - (window.innerWidth < 900 ? 90 : 30);
     var scroller = el.closest('.sheet');
     if (scroller) { el.scrollIntoView(false); return; }
+    var row = el.closest('.rs, .chips, .seasons');
+    if (row) {
+      var rr = row.getBoundingClientRect();
+      if (r.left < rr.left + 12) row.scrollLeft -= (rr.left + 12 - r.left);
+      else if (r.right > rr.right - 12) row.scrollLeft += (r.right - rr.right + 12);
+    }
+    var top = 24, bottom = window.innerHeight - (window.innerWidth < 900 ? 90 : 30);
     if (r.top < top) window.scrollBy(0, r.top - top - 40);
-    else if (r.bottom > bottom) window.scrollBy(0, r.bottom - bottom + 40);
+    else if (r.bottom > bottom) window.scrollBy(0, r.bottom - bottom + 60);
   }
 
   function move(dir) {

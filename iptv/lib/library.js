@@ -78,6 +78,7 @@ class Library {
     this.order = order;
     this.groups = groups;
     this.sourceCounts = counts;
+    this.all = order.l.concat(order.m, order.s);
     this.builtAt = Date.now();
   }
 
@@ -102,7 +103,7 @@ class Library {
       base = [];
       for (const id of p.ids) { const it = this.items.get(id); if (it) base.push(it); }
     } else {
-      base = this.order[p.k] || this.order.l;
+      base = p.k === 'all' ? (this.all || []) : (this.order[p.k] || this.order.l);
     }
     const bad = p.hide;
     const out = [];
@@ -129,6 +130,50 @@ class Library {
     }
     const self = this;
     return { total: total, items: list.slice(off, off + lim).map(function (it) { return self.card(it); }) };
+  }
+
+  /** Fileiras da tela inicial. */
+  home(favIds, recentIds) {
+    const self = this;
+    const rows = [];
+    const cards = function (ids) { return ids.map(function (id) { return self.items.get(id); }).filter(Boolean).slice(0, 30).map(function (it) { return self.card(it); }); };
+    const rec = cards(recentIds || []);
+    if (rec.length) rows.push({ id: 'recent', title: 'Continuar assistindo', items: rec });
+    const fav = cards((favIds || []).slice().reverse());
+    if (fav.length) rows.push({ id: 'fav', title: 'Minha lista', view: 'fav', items: fav });
+
+    const day = Math.floor(Date.now() / 86400000);
+    const pick = function (k, g, n) {
+      const arr = self.order[k];
+      const out = [];
+      const seen = new Set();
+      let seed = day * 9301 + g.length * 49297 + k.charCodeAt(0);
+      for (let tries = 0; tries < 4000 && out.length < n && arr.length; tries++) {
+        seed = (seed * 9301 + 49297) % 233280;
+        const it = arr[Math.floor(seed / 233280 * arr.length)];
+        if (!it || seen.has(it.id) || it.g !== g || (k !== 'l' && !it.lg)) continue;
+        seen.add(it.id);
+        out.push(self.card(it));
+      }
+      if (out.length < n) {
+        for (let i = 0; i < arr.length && out.length < n; i++) {
+          if (arr[i].g === g && !seen.has(arr[i].id)) { seen.add(arr[i].id); out.push(self.card(arr[i])); }
+        }
+      }
+      return out;
+    };
+    const BR = /bras|brazil|aberta|not[ií]cia|esporte|infantil|24 horas|document|variedade|m[uú]sica/i;
+    const add = function (k, label, count, skip) {
+      const gs = self.groups[k].filter(function (x) { return x.g !== 'Sem categoria' && x.g !== 'Geral' && !(skip && skip.test(x.g)) && x.c >= 6; }).sort(function (a, b) { return (BR.test(b.g) ? 1 : 0) - (BR.test(a.g) ? 1 : 0); }).slice(0, count);
+      gs.forEach(function (x) {
+        const items = pick(k, x.g, 24);
+        if (items.length) rows.push({ id: k + ':' + x.g, title: label ? label + ' · ' + x.g : x.g, k: k, g: x.g, items: items });
+      });
+    };
+    add('l', '', 3);
+    add('m', 'Filmes', 4);
+    add('s', 'Séries', 2);
+    return rows;
   }
 
   seriesDetail(id) {

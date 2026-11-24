@@ -1,0 +1,7 @@
+node_modules
+data
+.env
+webos-dist
+webos
+test
+.git

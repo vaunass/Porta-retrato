@@ -65,3 +65,20 @@ test('fontes: links de playlists e JSON de canais', () => {
   const out = []; walkJson({ data: { channels: [{ name: 'A', url: 'https://h/a.m3u8', logo: 'l' }, { title: 'sem url' }] } }, out, 0);
   assert.strictEqual(out.length, 1);
 });
+
+test('login: aceita só a senha certa, limita tentativas e valida a sessão', () => {
+  const os = require('os'); const fs = require('fs'); const path = require('path');
+  const { Auth, hashPassword } = require('../lib/auth');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-auth-'));
+  const h = hashPassword('Senha-de-teste-1');
+  fs.writeFileSync(path.join(dir, 'auth.json'), JSON.stringify({ user: 'Admin', salt: h.salt, hash: h.hash }));
+  const a = new Auth(dir);
+  assert.ok(a.enabled);
+  assert.strictEqual(a.login('1.1.1.1', 'admin', 'errada').ok, false);
+  const ok = a.login('2.2.2.2', 'ADMIN', 'Senha-de-teste-1');
+  assert.ok(ok.ok);
+  assert.ok(a.check({ headers: { cookie: 'x=1; iptv_s=' + ok.token } }));
+  assert.ok(!a.check({ headers: { cookie: 'iptv_s=falso' } }));
+  for (let i = 0; i < 5; i++) a.login('3.3.3.3', 'admin', 'x');
+  assert.ok(a.login('3.3.3.3', 'admin', 'Senha-de-teste-1').locked);
+});

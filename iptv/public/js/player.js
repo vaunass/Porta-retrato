@@ -228,6 +228,8 @@
     if (!S.open) {
       S.open = true;
       el('player').hidden = false;
+      el('player').classList.add('in');
+      setTimeout(function () { el('player').classList.remove('in'); }, 350);
       document.body.style.overflow = 'hidden';
       hooks.opened();
     }
@@ -309,6 +311,25 @@
     el('bCast').onclick = function () { hooks.cast(S.id, S.ep); };
     el('pRetry').onclick = function () { S.altIdx = 0; S.forceDirect = false; attempt(); };
     el('pDirect').onclick = function () { S.forceDirect = true; attempt(); };
+    // gestos: deslizar para baixo fecha; para os lados troca de canal; toque duplo avança/volta 10 s
+    var g = null, lastTap = 0;
+    p.addEventListener('touchstart', function (e) {
+      if (e.target.closest('#pBar, #pCenter, #pTop, .perr')) { g = null; return; }
+      var t = e.touches[0]; g = { x: t.clientX, y: t.clientY, t: Date.now() };
+    }, { passive: true });
+    p.addEventListener('touchend', function (e) {
+      if (!g) return;
+      var t = e.changedTouches[0], dx = t.clientX - g.x, dy = t.clientY - g.y;
+      var quick = Date.now() - g.t < 700;
+      if (quick && dy > 110 && Math.abs(dx) < 70) hooks.back();
+      else if (quick && Math.abs(dx) > 90 && Math.abs(dy) < 60 && !isVod()) go(dx < 0 ? 1 : -1);
+      else if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+        var now = Date.now();
+        if (now - lastTap < 300 && isVod()) { var side = t.clientX < w.innerWidth / 2 ? -10 : 10; seekBy(side); pToast((side > 0 ? '+' : '') + side + ' s', 700); }
+        lastTap = now;
+      }
+      g = null;
+    }, { passive: true });
     var seek = el('seek');
     seek.addEventListener('input', function () { updateSeek.drag = true; el('tCur').textContent = U.fmtTime(seek.value / 1000 * vid.duration); });
     seek.addEventListener('change', function () { if (isVod()) vid.currentTime = seek.value / 1000 * vid.duration; updateSeek.drag = false; });

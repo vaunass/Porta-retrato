@@ -15,10 +15,20 @@ const os = require('os');
 const zlib = require('zlib');
 
 const { Library } = require('./lib/library');
+const { Auth } = require('./lib/auth');
 const { Sources } = require('./lib/sources');
 const { handleProxy, probe } = require('./lib/proxy');
 
 const ROOT = __dirname;
+
+// carrega iptv/.env (IPTV_USER, IPTV_PASS, PORT, ...) sem sobrescrever o ambiente
+try {
+  fs.readFileSync(path.join(__dirname, '.env'), 'utf8').split(/\r?\n/).forEach(function (l) {
+    const m = l.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+  });
+} catch (e) { /* sem .env */ }
+
 const PUB = path.join(ROOT, 'public');
 const DATA = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
 const PORT = Number(process.env.PORT) || 8787;
@@ -38,6 +48,9 @@ state.save = function () {
 };
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return null; } }
+
+const auth = new Auth(DATA);
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 
 // ---------- biblioteca e fontes ----------
 const library = new Library();
@@ -142,6 +155,39 @@ async function route(req, res) {
   const q = u.searchParams;
   const m = req.method;
 
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+
+  // ----- login -----
+  const ip = (TRUST_PROXY && (req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress || '';
+  const secure = TRUST_PROXY && req.headers['x-forwarded-proto'] === 'https';
+
+  if (p === '/api/login' && m === 'POST') {
+    const b = await readBody(req, 2048);
+    const r = auth.login(ip, b.user, b.pass);
+    if (!r.ok) {
+      await new Promise(function (ok) { setTimeout(ok, 500); });
+      return json(req, res, r.locked ? 429 : 401, { error: r.locked ? 'Muitas tentativas. Tente de novo em 15 minutos.' : 'Usuário ou senha incorretos.' });
+    }
+    res.setHeader('Set-Cookie', auth.cookie(r.token, secure));
+    return json(req, res, 200, { ok: true });
+  }
+  if (p === '/api/logout' && m === 'POST') {
+    auth.logout(req);
+    res.setHeader('Set-Cookie', auth.clearCookie());
+    return json(req, res, 200, { ok: true });
+  }
+  if (p === '/api/me') return json(req, res, 200, { authed: auth.check(req), auth: auth.enabled, user: auth.user });
+
+  const open = p === '/login.html' || p === '/manifest.webmanifest' || p.indexOf('/icons/') === 0 || p === '/css/login.css';
+  if (!open && !auth.check(req)) {
+    if (p.indexOf('/api/') === 0) return json(req, res, 401, { error: 'login necessário' });
+    res.writeHead(302, { Location: '/login.html?next=' + encodeURIComponent(req.url) });
+    return res.end();
+  }
+
+  if (p === '/api/home' && m === 'GET') return json(req, res, 200, { rows: library.home(state.fav, state.recent) });
+
   if (p === '/api/proxy') return handleProxy(req, res, q);
 
   if (p === '/api/probe' && m === 'GET') {
@@ -152,7 +198,7 @@ async function route(req, res) {
   if (p === '/api/info' && m === 'GET') {
     const counts = library.sourceCounts;
     return json(req, res, 200, {
-      totals: library.totals(), builtAt: library.builtAt, building: rebuilding, urls: lanUrls(), port: PORT,
+      totals: library.totals(), builtAt: library.builtAt, building: rebuilding, urls: lanUrls(), port: PORT, user: auth.user,
       sources: sources.list().map(function (s) { const c = counts.get(s.id); return Object.assign(s, { counts: c || null }); }),
     });
   }
@@ -302,7 +348,8 @@ server.keepAliveTimeout = 5000;
     const urls = lanUrls();
     urls.forEach(function (x) { console.log('    ' + x); });
     console.log('    http://localhost:' + PORT + '  (este computador)\n');
-    console.log('  Sem senha: use só na rede de casa e não exponha a porta na internet.\n');
+    if (auth.enabled) console.log('  Login ativo (usuário: ' + auth.user + ').\n');
+    else console.log('  ATENÇÃO: sem login. Use só na rede de casa. Para ativar: node set-login.js USUARIO SENHA\n');
   });
   await sources.loadCache();
   await rebuild();

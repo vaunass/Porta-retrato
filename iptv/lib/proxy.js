@@ -13,6 +13,24 @@ const https = require('https');
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const MAX_MANIFEST = 6 * 1024 * 1024;
 
+const dns = require('dns');
+const net = require('net');
+
+function privateIp(ip) {
+  if (net.isIPv6(ip)) return /^(::1|fc|fd|fe80)/i.test(ip) || /^::ffff:(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(ip);
+  return /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(ip);
+}
+
+/** Com IPTV_BLOCK_PRIVATE=1 (servidor na internet), nunca conecta em rede interna. */
+function safeLookup(hostname, options, cb) {
+  dns.lookup(hostname, options, function (err, address, family) {
+    if (err) return cb(err);
+    const list = Array.isArray(address) ? address : [{ address: address, family: family }];
+    if (list.some(function (a) { return privateIp(a.address); })) return cb(new Error('destino bloqueado'));
+    cb(null, address, family);
+  });
+}
+
 function blocked(host) {
   if (process.env.IPTV_ALLOW_LOOPBACK) return false; // só para testes
   host = host.replace(/^\[|\]$/g, '').toLowerCase();
@@ -36,10 +54,15 @@ function open(url, opts, hops) {
       try { headers.Origin = new URL(opts.referer).origin; } catch (e) { /* ok */ }
     }
     if (opts.range) headers.Range = opts.range;
-    const req = lib.request(u, {
+    const ropts = {
       method: opts.method || 'GET', headers: headers, rejectUnauthorized: false,
       insecureHTTPParser: true, timeout: opts.timeout || 20000,
-    }, function (res) {
+    };
+    if (process.env.IPTV_BLOCK_PRIVATE === '1' && !process.env.IPTV_ALLOW_LOOPBACK) {
+      if (net.isIP(u.hostname.replace(/^\[|\]$/g, '')) && privateIp(u.hostname.replace(/^\[|\]$/g, ''))) return reject(new Error('destino bloqueado'));
+      ropts.lookup = safeLookup;
+    }
+    const req = lib.request(u, ropts, function (res) {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && hops < 6) {
         res.resume();
         let next;

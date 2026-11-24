@@ -36,7 +36,7 @@ Sem instalar nada, o navegador da TV com o mesmo endereço funciona igual.
 
 ## O que tem
 
-- **Ao vivo, Filmes e Séries** em abas, com categorias, busca e favoritos (os favoritos valem para todos os aparelhos).
+- **Início** com fileiras (continuar assistindo, minha lista, categorias), **Ao vivo, Filmes e Séries** com categorias, busca e favoritos (valem para todos os aparelhos). No celular: segure um card para favoritar; no player, deslize para baixo para fechar, para os lados para trocar de canal, toque duas vezes para avançar/voltar 10 s.
 - **Séries** organizadas por temporada e episódio, com "próximo episódio" automático.
 - **Versões alternativas:** o mesmo canal/filme em várias listas vira um item só; se um link cair, o player troca sozinho para o próximo. Dá para trocar à mão pelo botão de camadas.
 - **Proxy de streams:** o servidor repassa o vídeo, o que evita bloqueio de CORS, lida com links que exigem `Referer`/`User-Agent` e reescreve playlists HLS. Pode ser desligado em *Fontes → Ajustes*.
@@ -71,10 +71,45 @@ Sem instalar nada, o navegador da TV com o mesmo endereço funciona igual.
 | `PORT` | `8787` | porta do servidor |
 | `DATA_DIR` | `iptv/data` | cache das listas, favoritos e fontes |
 | `GITHUB_TOKEN` | — | aumenta o limite da API do GitHub |
+| `IPTV_USER` / `IPTV_PASS` | — | ativa o login |
+| `TRUST_PROXY` | `0` | `1` atrás de proxy HTTPS (Caddy, Cloudflare): usa o IP real e cookie `Secure` |
+| `IPTV_BLOCK_PRIVATE` | `0` | `1` bloqueia o proxy de acessar redes internas |
+
+## Login
+
+Com login ativo, nenhuma tela, API ou vídeo abre sem entrar. A sessão dura 90 dias por aparelho (cookie), e 5 tentativas erradas bloqueiam o IP por 15 minutos.
+
+Há duas formas de definir usuário e senha (a senha **não** fica no código):
+
+```bash
+# A) guardando só o hash em data/auth.json
+node set-login.js Admin 'sua-senha'
+
+# B) por variáveis (ou num arquivo iptv/.env, que o git ignora)
+IPTV_USER=Admin IPTV_PASS='sua-senha' node server.js
+```
+
+Sem nenhuma das duas o servidor abre sem login (só para a rede de casa).
+
+## Usar de qualquer lugar
+
+Para acessar fora do Wi-Fi o servidor precisa de um endereço na internet **com HTTPS** (senão a senha trafega aberta). Três jeitos:
+
+1. **Servidor (VPS) com Docker + HTTPS automático** — o mais estável e não depende do seu PC ligado. Qualquer VPS pequena (1 GB) serve. Precisa de um domínio apontando para o IP.
+   ```bash
+   git clone https://github.com/vaunass/Porta-retrato.git && cd Porta-retrato/iptv
+   printf 'DOMAIN=tv.seudominio.com\nIPTV_USER=Admin\nIPTV_PASS=sua-senha\n' > .env
+   docker compose up -d --build
+   ```
+   O Caddy emite o certificado sozinho. No modo internet o proxy recusa endereços de rede interna.
+2. **Seu PC de casa + Cloudflare Tunnel** — sem domínio próprio: `cloudflared tunnel --url http://localhost:8787` gera um endereço `https://…trycloudflare.com` (muda a cada execução; para um endereço fixo, use um túnel nomeado). O PC precisa ficar ligado. Defina `TRUST_PROXY=1` ao rodar o servidor.
+3. **Só em casa:** rode como antes; funciona no Wi-Fi sem HTTPS.
+
+Atenção: o vídeo passa pelo servidor, então o consumo de banda da VPS/PC é o de cada stream aberto. Muitos provedores de nuvem proíbem o uso de IPTV de terceiros; confira os termos do seu provedor.
 
 ## Segurança
 
-Não há senha: qualquer aparelho na sua rede pode usar e alterar favoritos e fontes. Use só na rede de casa e **não exponha a porta na internet**. O proxy bloqueia endereços locais (`localhost`, `127.x`, `169.254.x`).
+O proxy bloqueia `localhost`, `127.x` e `169.254.x` (e, com `IPTV_BLOCK_PRIVATE=1`, qualquer rede privada). Não exponha o servidor na internet sem login e sem HTTPS.
 
 ## Compatibilidade com TVs
 

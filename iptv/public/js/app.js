@@ -10,7 +10,7 @@
   if (qs.tv === '0') IS_TV = false;
   if (IS_TV) document.body.className += ' tv';
 
-  var TITLES = { l: 'Ao vivo', m: 'Filmes', s: 'Séries', fav: 'Favoritos', tvs: 'TVs', src: 'Fontes' };
+  var TITLES = { home: 'Início', l: 'Ao vivo', m: 'Filmes', s: 'Séries', fav: 'Minha lista', tvs: 'TVs', src: 'Fontes', more: 'Mais' };
 
   // ----- configurações deste aparelho -----
   var cfg = {
@@ -25,8 +25,8 @@
   function saveCfg() { ['name', 'receiver', 'proxy', 'hideBad', 'target'].forEach(function (k) { store.set(k, cfg[k]); }); }
 
   var S = {
-    view: 'l', g: '', src: '', q: '', items: [], total: 0, loading: false, gen: 0, done: false,
-    fav: {}, info: null, devices: [], builtAt: 0, groupsFor: ''
+    view: 'home', g: '', src: '', q: '', items: [], total: 0, loading: false, gen: 0, done: false,
+    fav: {}, homeGen: 0, homeRows: [], info: null, devices: [], builtAt: 0, groupsFor: ''
   };
 
   // ----- camadas (voltar do celular / controle da TV fecha player e janelas) -----
@@ -41,15 +41,24 @@
     return ((p[0] || '?').charAt(0) + (p[1] ? p[1].charAt(0) : (p[0] || '').charAt(1) || '')).toUpperCase();
   }
 
+  function hue(n) { var h = 0; for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) % 360; return h; }
+
   function cardHtml(it) {
     var poster = it.k !== 'l';
-    var sub = it.g + (it.k === 's' ? ' · ' + it.c + ' ep.' : (it.c > 1 ? ' · ' + it.c + ' versões' : ''));
+    var sub = it.k === 's' ? it.c + ' episódios' : (it.c > 1 ? it.g + ' · ' + it.c + ' versões' : it.g);
     return '<button class="card' + (poster ? ' p' : '') + '" data-id="' + it.id + '" data-k="' + it.k + '">' +
-      '<span class="in"><span class="thumb">' +
+      '<span class="art" style="background:hsl(' + hue(it.n) + ',18%,' + (poster ? 20 : 17) + '%)">' +
       '<span class="ini">' + esc(initials(it.n)) + '</span>' +
-      (it.lg ? '<img src="' + esc(it.lg) + '" alt="" referrerpolicy="no-referrer">' : '') + '</span>' +
-      '<span class="meta"><b>' + esc(it.n) + '</b><small>' + esc(sub) + '</small></span></span>' +
-      '<span class="star' + (S.fav[it.id] ? ' on' : '') + '" data-star="1"><i data-ic="star"></i></span></button>';
+      (it.lg ? '<img src="' + esc(it.lg) + '" alt="" referrerpolicy="no-referrer">' : '') +
+      (poster ? '' : '<span class="live-dot"></span>') +
+      '<span class="star' + (S.fav[it.id] ? ' on' : '') + '" data-star="1"><i data-ic="star"></i></span></span>' +
+      '<span class="t">' + esc(it.n) + '</span><span class="s">' + esc(sub) + '</span></button>';
+  }
+
+  function skelHtml(n, poster) {
+    var h = '';
+    for (var i = 0; i < n; i++) h += '<span class="card skel' + (poster ? ' p' : '') + '"><span class="art"></span><span class="t"></span><span class="s"></span></span>';
+    return h;
   }
 
   function chip(label, on, attrs, count) {
@@ -57,13 +66,13 @@
   }
 
   // ===================== listagem =====================
-  function kindOfView() { return S.view === 'fav' ? '' : S.view; }
+  function kindOfView() { return S.view === 'fav' ? '' : S.view === 'home' ? 'all' : S.view; }
 
   function loadGroups() {
     var k = kindOfView();
     var chips = $('chips'), sel = $('srcSel');
-    $('filters').style.display = k ? '' : 'none';
-    if (!k) return;
+    $('filters').style.display = (k && k !== 'all') ? '' : 'none';
+    if (!k || k === 'all') return;
     api('/api/groups?k=' + k).then(function (gs) {
       if (kindOfView() !== k) return;
       var h = chip('Todos', !S.g, 'data-g=""');
@@ -192,7 +201,7 @@
     d.seasons.forEach(function (s) {
       if (s.s !== seriesState.season) return;
       s.eps.forEach(function (e) {
-        h += '<div class="ep"><button data-ep="' + s.s + ':' + e.e + '">E' + (e.e < 10 ? '0' : '') + e.e + (e.c > 1 ? '<small>' + e.c + ' versões</small>' : '') + '</button></div>';
+        h += '<div class="ep"><button data-ep="' + s.s + ':' + e.e + '"><em>E' + (e.e < 10 ? '0' : '') + e.e + '</em>Episódio ' + e.e + (e.c > 1 ? '<small>' + e.c + ' versões</small>' : '') + '<i data-ic="play"></i></button></div>';
       });
     });
     return h + '</div>';
@@ -316,19 +325,65 @@
   }
 
   // ===================== navegação entre seções =====================
-  function setView(v) {
+  function setView(v, group) {
     S.view = v;
-    var btns = document.querySelectorAll('#nav button');
-    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].getAttribute('data-view') === v);
-    $('title').textContent = TITLES[v];
-    var page = v === 'tvs' || v === 'src';
-    $('browse').hidden = page; $('tvs').hidden = v !== 'tvs'; $('src').hidden = v !== 'src';
-    $('top').querySelector('.search').style.visibility = page ? 'hidden' : '';
-    store.set('view', v);
+    var btns = document.querySelectorAll('#nav button[data-view]');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].getAttribute('data-view') === v || (v === 'menu' && btns[i].getAttribute('data-view') === 'more'));
+    $('title').textContent = TITLES[v] || '';
+    var page = v === 'tvs' || v === 'src' || v === 'more';
+    var searching = v === 'home' && S.q;
+    $('home').hidden = !(v === 'home' && !S.q);
+    $('browse').hidden = page || (v === 'home' && !S.q);
+    $('tvs').hidden = v !== 'tvs'; $('src').hidden = v !== 'src'; $('menu').hidden = v !== 'more';
+    $('top').querySelector('.search').style.display = page ? 'none' : '';
+    if (v !== 'more') store.set('view', v);
     window.scrollTo(0, 0);
+    var sec = v === 'home' ? $('home') : v === 'tvs' ? $('tvs') : v === 'src' ? $('src') : v === 'more' ? $('menu') : $('browse');
+    sec.classList.remove('enter'); void sec.offsetWidth; sec.classList.add('enter');
     if (v === 'tvs') renderTvs();
     else if (v === 'src') renderSources();
-    else { S.g = ''; S.src = ''; loadGroups(); resetList(); }
+    else if (v === 'more') renderMenu();
+    else if (v === 'home' && !searching) renderHome(true);
+    else { S.g = group || ''; S.src = ''; loadGroups(); resetList(); }
+  }
+
+  // ===================== início (fileiras) =====================
+  function renderHome(skeleton) {
+    var el = $('home');
+    if (skeleton) el.innerHTML = '<div class="rowx"><div class="rh"><h2>&nbsp;</h2></div><div class="rs">' + skelHtml(8, false) + '</div></div><div class="rowx"><div class="rh"><h2>&nbsp;</h2></div><div class="rs">' + skelHtml(8, true) + '</div></div>';
+    var gen = ++S.homeGen;
+    api('/api/home').then(function (r) {
+      if (gen !== S.homeGen || S.view !== 'home') return;
+      S.homeRows = r.rows;
+      if (!r.rows.length) { el.innerHTML = ''; var e = $('empty'); el.innerHTML = '<div class="empty" style="padding-top:60px"><b>' + (S.info && S.info.building ? 'Baixando as listas…' : 'Nada por aqui ainda') + '</b>' + (S.info && S.info.building ? 'Na primeira vez pode levar um ou dois minutos. Esta tela atualiza sozinha.' : 'Veja a aba Fontes para adicionar listas.') + '</div>'; return; }
+      el.innerHTML = r.rows.map(function (row, i) {
+        return '<section class="rowx"><div class="rh"><h2>' + esc(row.title) + '</h2>' + (row.view || row.k ? '<button class="all" data-row="' + i + '">Ver tudo</button>' : '') + '</div>' +
+          '<div class="rs">' + row.items.map(cardHtml).join('') + '</div></section>';
+      }).join('');
+      U.paintIcons(el);
+    }).catch(function () {});
+  }
+
+  function renderMenu() {
+    var who = S.info && S.info.user ? S.info.user : '';
+    var items = [['fav', 'star', 'Minha lista'], ['tvs', 'cast', 'TVs e controle remoto'], ['src', 'list', 'Fontes de listas']];
+    var h = '<h2>Mais</h2><div class="box menu-list">' + items.map(function (i) {
+      return '<button data-view="' + i[0] + '"><i data-ic="' + i[1] + '"></i><span>' + i[2] + '</span><i class="chv" data-ic="chev"></i></button>';
+    }).join('') + '<button data-act="logout"><i data-ic="logout"></i><span>Sair' + (who ? ' (' + esc(who) + ')' : '') + '</span></button></div>';
+    $('menu').innerHTML = h;
+    U.paintIcons($('menu'));
+  }
+
+  function logout() {
+    api('/api/logout', { body: {} }).catch(function () {}).then(function () { location.href = '/login.html'; });
+  }
+
+  function applySearch() {
+    var v = S.view;
+    if (v === 'home') {
+      $('home').hidden = !!S.q; $('browse').hidden = !S.q;
+      if (S.q) { loadGroups(); resetList(); } else renderHome(false);
+    } else if (v === 'l' || v === 'm' || v === 's' || v === 'fav') resetList();
   }
 
   // ===================== info / atualização periódica =====================
@@ -339,7 +394,8 @@
       var changed = !S.info || S.info.builtAt !== info.builtAt;
       S.info = info;
       if (S.view === 'src' && !document.activeElement.closest('#src input')) renderSourcesKeepFocus();
-      if (changed && (S.view === 'l' || S.view === 'm' || S.view === 's' || S.view === 'fav')) { loadGroups(); resetList(); }
+      if (changed && S.view === 'home' && !S.q) renderHome(false);
+      else if (changed && (S.view === 'l' || S.view === 'm' || S.view === 's' || S.view === 'fav' || (S.view === 'home' && S.q))) { loadGroups(); resetList(); }
       var busy = info.building || info.sources.some(function (s) { return s.state === 'loading'; });
       pollTimer = setTimeout(pollInfo, busy ? 2500 : 20000);
     }).catch(function () { pollTimer = setTimeout(pollInfo, 6000); });
@@ -393,7 +449,26 @@
 
   // ===================== eventos =====================
   function bind() {
-    $('nav').addEventListener('click', function (e) { var b = e.target.closest('button[data-view]'); if (b) setView(b.getAttribute('data-view')); });
+    $('nav').addEventListener('click', function (e) {
+      if (e.target.closest('[data-act="logout"]')) return logout();
+      var b = e.target.closest('button[data-view]'); if (b) setView(b.getAttribute('data-view'));
+    });
+    $('menu').addEventListener('click', function (e) {
+      if (e.target.closest('[data-act="logout"]')) return logout();
+      var b = e.target.closest('button[data-view]'); if (b) setView(b.getAttribute('data-view'));
+    });
+    $('home').addEventListener('click', function (e) {
+      var all = e.target.closest('[data-row]');
+      if (all) { var row = S.homeRows[parseInt(all.getAttribute('data-row'), 10)]; if (row) { if (row.view) setView(row.view); else setView(row.k, row.g); } return; }
+      var card = e.target.closest('.card'); if (!card) return;
+      if (e.target.closest('[data-star]')) return toggleFav(card.getAttribute('data-id'));
+      activate(card.getAttribute('data-id'), card.getAttribute('data-k'));
+    });
+    // segurar o dedo num card = favoritar
+    var lp = null, lpFired = false;
+    document.addEventListener('touchstart', function (e) { var c = e.target.closest && e.target.closest('.card'); if (!c || c.classList.contains('skel')) return; lpFired = false; lp = setTimeout(function () { lpFired = true; toggleFav(c.getAttribute('data-id')); if (navigator.vibrate) navigator.vibrate(18); }, 520); }, { passive: true });
+    ['touchend', 'touchmove', 'touchcancel'].forEach(function (ev) { document.addEventListener(ev, function () { clearTimeout(lp); }, { passive: true }); });
+    document.addEventListener('click', function (e) { if (lpFired) { lpFired = false; e.stopPropagation(); e.preventDefault(); } }, true);
     $('castPill').onclick = function () { setView('tvs'); };
 
     $('grid').addEventListener('click', function (e) {
@@ -402,7 +477,7 @@
       if (e.target.closest('[data-star]')) { toggleFav(id); return; }
       activate(id, card.getAttribute('data-k'));
     });
-    $('grid').addEventListener('error', function (e) { if (e.target.tagName === 'IMG') e.target.style.display = 'none'; }, true);
+    document.addEventListener('error', function (e) { if (e.target.tagName === 'IMG' && e.target.parentNode && e.target.parentNode.className === 'art') e.target.style.display = 'none'; }, true);
     $('grid').addEventListener('keydown', function (e) {
       var card = e.target.closest && e.target.closest('.card');
       if (card && (e.keyCode === 403 || e.key === 'f')) toggleFav(card.getAttribute('data-id'));
@@ -418,7 +493,7 @@
     $('srcSel').onchange = function () { S.src = this.value; resetList(); };
 
     var q = $('q');
-    q.addEventListener('input', U.debounce(function () { S.q = q.value.trim(); if (S.view === 'tvs' || S.view === 'src') return; resetList(); }, 300));
+    q.addEventListener('input', U.debounce(function () { S.q = q.value.trim(); applySearch(); }, 300));
     q.addEventListener('keydown', function (e) { if (e.keyCode === 13) q.blur(); });
 
     $('modal').addEventListener('click', function (e) {
@@ -466,7 +541,7 @@
       .then(function (info) {
         S.info = info;
         paintPill();
-        setView(store.get('view', 'l') === 'fav' || store.get('view', 'l') === 'tvs' || store.get('view', 'l') === 'src' ? 'l' : store.get('view', 'l'));
+        var lv = store.get('view', 'home'); setView(lv === 'l' || lv === 'm' || lv === 's' ? lv : 'home');
         connect();
         pollInfo();
         if (IS_TV && !store.get('tvhint', false)) { store.set('tvhint', true); U.toast('Modo TV ligado: este aparelho toca o que você mandar pelo celular.', 5000); }

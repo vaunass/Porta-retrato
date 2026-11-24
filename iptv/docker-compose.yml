@@ -1,0 +1,30 @@
+# Servidor na internet com HTTPS automático (Caddy).
+# 1) Aponte um domínio para o IP do servidor (registro A).
+# 2) Crie o arquivo .env ao lado deste com:
+#      DOMAIN=tv.seudominio.com
+#      IPTV_USER=Admin
+#      IPTV_PASS=sua-senha-forte
+# 3) docker compose up -d --build
+services:
+  iptv:
+    build: .
+    restart: unless-stopped
+    environment:
+      IPTV_USER: ${IPTV_USER:-admin}
+      IPTV_PASS: ${IPTV_PASS:?defina IPTV_PASS no .env}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    volumes:
+      - iptv-data:/data
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?defina DOMAIN no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [iptv]
+volumes:
+  iptv-data:
+  caddy-data:

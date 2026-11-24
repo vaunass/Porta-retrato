@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0e">
+<title>Entrar · Porta IPTV</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+<main class="wrap">
+  <form id="f" class="card" autocomplete="on">
+    <img class="logo" src="icons/icon-192.png" alt="" width="72" height="72">
+    <h1>Porta IPTV</h1>
+    <p>Entre para assistir</p>
+    <label>Usuário<input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+    <label>Senha<input id="p" name="password" type="password" autocomplete="current-password" required></label>
+    <div id="err" role="alert"></div>
+    <button id="go" type="submit">Entrar</button>
+  </form>
+</main>
+<script>
+(function () {
+  var f = document.getElementById('f'), err = document.getElementById('err'), go = document.getElementById('go');
+  var next = (location.search.match(/[?&]next=([^&]+)/) || [])[1];
+  next = next ? decodeURIComponent(next) : '/';
+  if (next.charAt(0) !== '/' || next.charAt(1) === '/') next = '/';
+  fetch('/api/me').then(function (r) { return r.json(); }).then(function (j) { if (j.authed) location.replace(next); });
+  setTimeout(function () { document.getElementById('u').focus(); }, 150);
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.textContent = ''; go.disabled = true; go.textContent = 'Entrando…';
+    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: document.getElementById('u').value, pass: document.getElementById('p').value }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (r) {
+        if (r.ok) return location.replace(next);
+        err.textContent = r.j.error || 'Não foi possível entrar.';
+        go.disabled = false; go.textContent = 'Entrar';
+        document.getElementById('p').value = ''; document.getElementById('p').focus();
+      })
+      .catch(function () { err.textContent = 'Sem conexão com o servidor.'; go.disabled = false; go.textContent = 'Entrar'; });
+  });
+})();
+</script>
+</body>
+</html>
