@@ -3,7 +3,18 @@
 TV ao vivo, filmes e séries no **celular** e na **TV LG**, tudo pelo Wi-Fi de casa.
 Um servidor leve (Node.js, sem dependências) baixa as listas M3U, junta tudo numa biblioteca única e serve o app. O celular e a TV só abrem o endereço no navegador.
 
-## Como usar
+## Início rápido no seu PC (Windows, Mac ou Linux)
+
+1. Instale o [Node.js](https://nodejs.org) (versão LTS).
+2. Para acessar **de qualquer lugar**, instale uma vez o cloudflared. Windows: `winget install --id Cloudflare.cloudflared`. Mac: `brew install cloudflared`.
+3. Dê dois cliques em **`iniciar.bat`** (Windows) ou rode `./iniciar.sh` (Mac/Linux).
+   - Na primeira vez ele pergunta o **usuário e a senha** e guarda só o hash.
+   - Abre o servidor e, em seguida, mostra um endereço `https://…trycloudflare.com`. Esse é o endereço para abrir no celular e na TV, dentro ou fora de casa.
+4. Deixe as duas janelas abertas e o PC ligado (e sem suspender).
+
+O endereço da Cloudflare **muda toda vez** que você reinicia. Se quiser um fixo e gratuito, crie uma conta na Cloudflare, use um domínio seu e um túnel nomeado (`cloudflared tunnel login`). O login e os favoritos continuam valendo.
+
+## Como usar (detalhes)
 
 Precisa do [Node.js](https://nodejs.org) 18 ou mais novo, num computador que fique ligado (PC, notebook, mini PC, Raspberry Pi):
 
